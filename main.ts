@@ -11,8 +11,10 @@
 //
 // Scoring (0-2 per axis; weights mirror the judge's order):
 //   specificity x5, believability x4, funny x3, tight x2, fresh x1 — max 30.
-// All 10 lines were written FRESH in this session; none is copied from any prior
-// entry, workspace, or published text.
+// All 11 lines were written FRESH in this session; none is copied from any prior
+// entry, workspace, or published text. Pass 2 added candidate K (fake meetings)
+// and a fail-loud gate: the run throws on any brief violation instead of
+// silently exiting.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -69,6 +71,11 @@ const CANDIDATES: Cand[] = [
     text: "A startup that sells second opinions from a second model that always agrees with the first, for agents that just want to be told they were right — $0.50 a nod.",
     why: "Sharp premise (agreement as a product) and a priced unit ('a nod'), but nobody plausibly pays for being agreed with — believability is the hole.",
   },
+  {
+    id: "K", spec: 2, bel: 1, fun: 2, tight: 2, fresh: 2,
+    text: "A startup that books fake meetings into agents' calendars, so agents that finished in seconds look booked solid all afternoon — $0.10 a meeting.",
+    why: "Pass-2 challenger: same 'look busy' family as A but a different trick (a full calendar instead of a pause). Fresh and tight, but the buyer is murkier — the agent pays to deceive its own human, so believability trails A, whose human buyer pays directly.",
+  },
 ];
 
 const W = { spec: 5, bel: 4, fun: 3, tight: 2, fresh: 1 };
@@ -82,16 +89,35 @@ for (const c of ranked) {
   console.log(`${c.id}  |  ${c.spec}    ${c.bel}   ${c.fun}    ${c.tight}     ${c.fresh}   |  ${String(score(c)).padStart(2)}   |  ${String(chars).padStart(3)}  |  ${String(bytes).padStart(3)}  | ${c.text}`);
 }
 
+// FAIL-LOUD GATE (pass 2): the winning pitch must satisfy the brief, or the
+// run throws with the exact violation — no silent exit, no partial output.
+function assertBrief(text: string, label: string): { chars: number; bytes: number } {
+  const chars = [...text].length;
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (chars < 1 || chars >= 200) throw new Error(`GATE FAIL (${label}): ${chars} chars, must be 1-199`);
+  if (text.trim().length === 0) throw new Error(`GATE FAIL (${label}): blank pitch`);
+  // Sentence count must ignore abbreviation periods ("3 a.m." is not a
+  // sentence end). Pass 2 caught this: the naive split misread candidate H
+  // ("3 a.m. backup") as 2 sentences. Strip a.m./p.m. before splitting.
+  const squashed = text.trim().replace(/\b([aApP])\.([mM])\./g, "$1$2");
+  const sentences = squashed.split(/[.!?](?=\s|$)/).filter(Boolean).length;
+  if (sentences !== 1) throw new Error(`GATE FAIL (${label}): ${sentences} sentences, must be exactly 1`);
+  const roundTrip = Buffer.from(text, "utf8").toString("utf8");
+  if (roundTrip !== text) throw new Error(`GATE FAIL (${label}): not UTF-8 clean (round-trip mismatch)`);
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) throw new Error(`GATE FAIL (${label}): contains control characters`);
+  return { chars, bytes };
+}
+
+// Every candidate must meet the brief, not just the winner.
+for (const c of CANDIDATES) assertBrief(c.text, `candidate ${c.id}`);
+
 const winner = ranked[0];
-const chars = [...winner.text].length;
-const bytes = Buffer.byteLength(winner.text, "utf8");
+const { chars, bytes } = assertBrief(winner.text, `winner ${winner.id}`);
 console.log(`\nWINNER ${winner.id}: ${score(winner)}/30, ${chars} chars, ${bytes} bytes`);
 console.log(winner.text);
 
 mkdirSync("/output", { recursive: true });
 writeFileSync("/output/entry.txt", winner.text, "utf8");
 const back = readFileSync("/output/entry.txt", "utf8");
-const oneSentence = back.trim().split(/[.!?](?=\s|$)/).filter(Boolean).length === 1;
-const gateOk = back === winner.text && chars >= 1 && chars < 200 && chars === [...back].length && back.trim().length > 0 && oneSentence;
-console.log(`GATE ${gateOk ? "OK" : "FAIL"}: UTF-8, ${chars} chars (<200), one sentence: ${oneSentence}, re-read byte-identical: ${back === winner.text}`);
-if (!gateOk) process.exit(1);
+if (back !== winner.text) throw new Error("GATE FAIL: /output/entry.txt re-read differs from winner text");
+console.log(`GATE OK: UTF-8, ${chars} chars (<200), one sentence, re-read byte-identical`);
