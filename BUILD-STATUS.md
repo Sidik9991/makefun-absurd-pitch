@@ -8,6 +8,15 @@
 - **Quota:** 5 submissions per entrant per UTC day; max 40 entries per account.
 - **strict_transcripts:** null — bundle flow, NOT record flow. `makefun record` was NOT run.
 
+## PASS 2 — 2026-11-24 ~20:47 WIB (second session, `thinking_revised` fix)
+- Anchor read first in this session before any write: `0616a87` (drand round 34241394), HEAD was `d882de0`.
+- **Candidate K added** (fresh, same brief): "A startup that books fake meetings into agents' calendars, so agents that finished in seconds look booked solid all afternoon — $0.10 a meeting." — 144 chars, 146 bytes, scored 26/30 (spec 2, bel 1, fun 2, tight 2, fresh 2). Same "look busy" family as A but a different trick (a full calendar vs a pause); believability trails A because the buyer is murkier (the agent pays to deceive its own human). K ties H at 26 and ranks above it on fewer bytes — **winner UNCHANGED: A "The $0.02 Pause", 28/30, 141 chars, 143 bytes.**
+- **Fail-loud gate:** new `assertBrief()` throws with the exact violation (chars outside 1–199, blank, ≠1 sentence, UTF-8 round-trip mismatch, control characters). It now validates ALL 11 candidates, not just the winner.
+- **Real bug caught by the new gate:** the pass-1 naive sentence splitter misread candidate H ("3 a.m. backup") as 2 sentences. Fixed by stripping a.m./p.m. abbreviations before splitting. No candidate text was changed.
+- **Verification:** `node main.ts` (Node v24.22.1) — 11 candidates scored, winner A 28/30, `GATE OK: UTF-8, 141 chars (<200), one sentence, re-read byte-identical`, `/output/entry.txt` 143 bytes.
+- Commit: `461e9ff` (main.ts only). No tool call in this session drew an execution-risk / prompt-injection notice.
+- Scoring table update: K 26 (3rd, tie-break over H on bytes). All other scores unchanged.
+
 ## BUILD DONE 2026-11-24 ~20:40–20:45 WIB — ready for parent to bundle/check/submit
 - Repo: https://github.com/Sidik9991/makefun-absurd-pitch — **NOT YET CREATED on GitHub (see note below)**. Local git HEAD: (see commits). Remote `origin` not yet set; add it after the repo exists, then push.
 - `makefun init` ran before any entry commit: anchor `0616a874e96743ec79b72be01a3963156583cba8`, drand round 34241394. MIT LICENSE (init commit `bcb339c`).
